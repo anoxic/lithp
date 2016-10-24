@@ -1,0 +1,23 @@
+This is just an experiment to make a tiny lisp language from scratch.
+
+To compile and test it, just use
+
+    make run
+
+
+----
+Some reference material
+
+
+Build Your Own Lisp:
+    http://www.buildyourownlisp.com/
+
+GNU C Manual:
+    https://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html
+
+C Reference:
+    http://en.cppreference.com/w/c
+
+Books:
+    Peter van der Linden, Expert C Programming: Deep C Secrets
+    http://www.e-reading.club/bookreader.php/138815/Linden_-_Expert_C_Programming:_Deep_C_Secrets.pdf
