@@ -4,25 +4,79 @@
 #include <editline/readline.h>
 #include <editline/history.h>
 
-long eval_fn(long x, char* fn, long y) {
-    if (strcmp(fn, "+") == 0) { return x + y; }
-    if (strcmp(fn, "-") == 0) { return x - y; }
-    if (strcmp(fn, "*") == 0) { return x * y; }
-    if (strcmp(fn, "/") == 0) { return x / y; }
-    if (strcmp(fn, "%") == 0) { return x % y; }
-    if (strcmp(fn, "^") == 0) { return pow(x, y); }
-    if (strcmp(fn, "min") == 0) { return fmin(x, y); }
-    if (strcmp(fn, "max") == 0) { return fmax(x, y); }
-    return 0;
+typedef struct {
+    enum { LVAL_INTEGER, LVAL_ERR } type;
+    union {
+        long integer;
+        int err;
+    } v;
+} lval;
+
+enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_INTEGER };
+
+lval lval_integer(long x) {
+    lval v;
+    v.type = LVAL_INTEGER;
+    v.v.integer = x;
+    return v;
 }
 
-long eval(mpc_ast_t* t) {
-    if (strstr(t->tag, "number")) {
-        return atoi(t->contents);
+lval lval_err(int x) {
+    lval v;
+    v.type = LVAL_ERR;
+    v.v.err = x;
+    return v;
+}
+
+void lval_print(lval v) {
+    switch (v.type) {
+        case LVAL_INTEGER: printf("%li", v.v.integer); break;
+
+        case LVAL_ERR: 
+        switch (v.v.err) {
+            case LERR_DIV_ZERO: printf("Error: division by zero"); break;
+            case LERR_BAD_OP: printf("Error: invalid operator"); break;
+            case LERR_BAD_INTEGER: printf("Error: invalid integer"); break;
+        }
+        break;
+
+        default: puts("Error: unknown error type"); break;
+    }
+}
+
+void lval_println(lval v) { lval_print(v); putchar('\n'); }
+
+lval eval_fn(lval x, char* fn, lval y) {
+
+    /* If either input is an error, return it */
+    if (x.type == LVAL_ERR) { return x; }
+    if (y.type == LVAL_ERR) { return y; }
+
+    if (strcmp(fn, "min") == 0) { return lval_integer(fmin(x.v.integer, y.v.integer)); }
+    if (strcmp(fn, "max") == 0) { return lval_integer(fmax(x.v.integer, y.v.integer)); }
+    if (strcmp(fn, "+") == 0) { return lval_integer(x.v.integer + y.v.integer); }
+    if (strcmp(fn, "-") == 0) { return lval_integer(x.v.integer - y.v.integer); }
+    if (strcmp(fn, "*") == 0) { return lval_integer(x.v.integer * y.v.integer); }
+    if (strcmp(fn, "%") == 0) { return lval_integer(x.v.integer % y.v.integer); }
+    if (strcmp(fn, "^") == 0) { return lval_integer(pow(x.v.integer, y.v.integer)); }
+    if (strcmp(fn, "/") == 0) {
+        return y.v.integer == 0 
+            ? lval_err(LERR_DIV_ZERO) 
+            : lval_integer(x.v.integer / y.v.integer);
+    }
+
+    return lval_err(LERR_BAD_OP);
+}
+
+lval eval(mpc_ast_t* t) {
+    if (strstr(t->tag, "integer")) {
+        errno = 0;
+        long x = strtol(t->contents, NULL, 10);
+        return errno != ERANGE ? lval_integer(x) : lval_err(LERR_BAD_INTEGER);
     }
 
     char* op = t->children[1]->contents;
-    long  x  = eval(t->children[2]);
+    lval  x  = eval(t->children[2]);
 
     /* Run function for 2 or more arguments */
     int i = 3;
@@ -33,7 +87,7 @@ long eval(mpc_ast_t* t) {
 
     /* With only one argument, - negates */
     if (strstr(op, "-") && i == 3) {
-        x = -x;
+        x = lval_integer(-x.v.integer);
     }
 
     return x;
@@ -69,8 +123,8 @@ int main(int argc, char** argv) {
 
         mpc_result_t r;
         if (mpc_parse("<stdin>", input, Lithp, &r)) {
-            long result = eval(r.output);
-            printf("%li\n", result);
+            lval result = eval(r.output);
+            lval_println(result);
             mpc_ast_delete(r.output);
         } else {
             mpc_err_print(r.error);
