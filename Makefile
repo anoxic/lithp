@@ -1,16 +1,22 @@
-.PHONY: run clean
+.PHONY: run clean debug
 
-objects = lithp.c mpc.c
+objects  = lithp.c mpc.c
+compiler = gcc
+options  = -std=c99 -ledit -lm
 
 all: lithp
 
 lithp:
-	cc -std=c99 -Wall -o lithp $(objects) -ledit -lm
+	$(compiler) -o lithp $(objects) $(options)
 
 run:
-	@cc -std=c99 -Wall -o tmp $(objects) -ledit -lm
+	@$(compiler) -o tmp $(objects) $(options)
 	@./tmp
 	@rm tmp
 
+debug:
+	$(compiler) -o tmp $(objects) $(options) -g
+	gdb tmp
+
 clean:
-	rm lithp
+	rm lithp tmp
