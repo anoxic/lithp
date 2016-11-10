@@ -19,4 +19,4 @@ debug:
 	$(CC) -o '$(tmpfile)' $(objects) $(options) -g && gdb $(tmpfile)
 
 clean:
-	rm lithp tmp
+	rm lithp
