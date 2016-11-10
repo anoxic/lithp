@@ -5,19 +5,27 @@
 #include <editline/history.h>
 
 typedef struct {
-    enum { LVAL_INTEGER, LVAL_ERR } type;
+    enum { LVAL_INTEGER, LVAL_DECIMAL, LVAL_ERR } type;
     union {
         long integer;
+        long double decimal;
         int err;
     } v;
 } lval;
 
-enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_INTEGER };
+enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_INTEGER, LERR_BAD_DECIMAL };
 
 lval lval_integer(long x) {
     lval v;
     v.type = LVAL_INTEGER;
     v.v.integer = x;
+    return v;
+}
+
+lval lval_decimal(long double x) {
+    lval v;
+    v.type = LVAL_DECIMAL;
+    v.v.decimal = x;
     return v;
 }
 
@@ -32,11 +40,14 @@ void lval_print(lval v) {
     switch (v.type) {
         case LVAL_INTEGER: printf("%li", v.v.integer); break;
 
+        case LVAL_DECIMAL: printf("%Lg", v.v.decimal); break;
+
         case LVAL_ERR: 
         switch (v.v.err) {
             case LERR_DIV_ZERO: printf("Error: division by zero"); break;
             case LERR_BAD_OP: printf("Error: invalid operator"); break;
             case LERR_BAD_INTEGER: printf("Error: invalid integer"); break;
+            case LERR_BAD_DECIMAL: printf("Error: invalid decimal"); break;
         }
         break;
 
@@ -46,29 +57,60 @@ void lval_print(lval v) {
 
 void lval_println(lval v) { lval_print(v); putchar('\n'); }
 
+lval lval_convertnumber(lval x, int type) {
+    if (type == LVAL_DECIMAL) {
+        long double v = x.type == LVAL_DECIMAL ? x.v.decimal : x.v.integer;
+        return lval_decimal(v);
+    }
+    long v = x.type==LVAL_DECIMAL ? x.v.decimal : x.v.integer;
+    return lval_integer(v);
+}
+
+lval lval_ldtonumber(long double v, int type) {
+    return type == LVAL_DECIMAL ? lval_decimal(v) : lval_integer(v);
+}
+
 lval eval_fn(lval x, char* fn, lval y) {
+    int type;
+    long double xc,yc;
 
     /* If either input is an error, return it */
     if (x.type == LVAL_ERR) { return x; }
     if (y.type == LVAL_ERR) { return y; }
 
-    if (strcmp(fn, "min") == 0) { return lval_integer(fmin(x.v.integer, y.v.integer)); }
-    if (strcmp(fn, "max") == 0) { return lval_integer(fmax(x.v.integer, y.v.integer)); }
-    if (strcmp(fn, "+") == 0) { return lval_integer(x.v.integer + y.v.integer); }
-    if (strcmp(fn, "-") == 0) { return lval_integer(x.v.integer - y.v.integer); }
-    if (strcmp(fn, "*") == 0) { return lval_integer(x.v.integer * y.v.integer); }
-    if (strcmp(fn, "%") == 0) { return lval_integer(x.v.integer % y.v.integer); }
-    if (strcmp(fn, "^") == 0) { return lval_integer(pow(x.v.integer, y.v.integer)); }
+    if (x.type == LVAL_DECIMAL || y.type == LVAL_DECIMAL) {
+        type = LVAL_DECIMAL;
+        xc = lval_convertnumber(x,LVAL_DECIMAL).v.decimal;
+        yc = lval_convertnumber(y,LVAL_DECIMAL).v.decimal;
+    } else {
+        type = LVAL_INTEGER;;
+        xc = lval_convertnumber(x,LVAL_INTEGER).v.integer;
+        yc = lval_convertnumber(y,LVAL_INTEGER).v.integer;
+    }
+
+    if (strcmp(fn, "min") == 0) { return lval_ldtonumber(fmin(xc,yc),type); }
+    if (strcmp(fn, "max") == 0) { return lval_ldtonumber(fmax(xc,yc),type); }
+    if (strcmp(fn, "+") == 0) { return lval_ldtonumber(xc + yc,type); }
+    if (strcmp(fn, "-") == 0) { return lval_ldtonumber(xc - yc,type); }
+    if (strcmp(fn, "*") == 0) { return lval_ldtonumber(xc * yc,type); }
+    if (strcmp(fn, "%") == 0) { return lval_ldtonumber((long)xc % (long)yc,type); }
+    if (strcmp(fn, "^") == 0) { return lval_ldtonumber(pow(xc, yc),type); }
     if (strcmp(fn, "/") == 0) {
-        return y.v.integer == 0 
+        return yc == 0 
             ? lval_err(LERR_DIV_ZERO) 
-            : lval_integer(x.v.integer / y.v.integer);
+            : lval_ldtonumber(xc / yc, type);
     }
 
     return lval_err(LERR_BAD_OP);
 }
 
 lval eval(mpc_ast_t* t) {
+    if (strstr(t->tag, "decimal")) {
+        errno = 0;
+        long double x = strtold(t->contents, NULL);
+        return errno != ERANGE ? lval_decimal(x) : lval_err(LERR_BAD_DECIMAL);
+    }
+
     if (strstr(t->tag, "integer")) {
         errno = 0;
         long x = strtol(t->contents, NULL, 10);
