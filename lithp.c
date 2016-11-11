@@ -112,9 +112,8 @@ lval eval(mpc_ast_t* t) {
     }
 
     /* With only one argument, - negates */
-    /* XXX: not setup for decimals */
     if (strstr(op, "-") && i == 3) {
-        x = lval_integer(-x.v.number);
+        x = lval_ldtonumber(-x.v.number, x.type);
     }
 
     return x;
