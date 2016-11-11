@@ -141,7 +141,7 @@ int main(int argc, char** argv) {
         "  lithp    : /^/ <fn> <expr>+ /$/ ;                  ",
         Integer, Decimal, Number, Operator, Fn, Expr, Lithp);
 
-    puts("Lithp Version 0.0.0.0.0.0.0.2");
+    puts("Lithp Version 0.8");
     puts("Press Ctrl+c to Exit\n");
 
     while (1) {
