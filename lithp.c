@@ -7,25 +7,24 @@
 typedef struct {
     enum { LVAL_INTEGER, LVAL_DECIMAL, LVAL_ERR } type;
     union {
-        long integer;
-        long double decimal;
+        long double number;
         int err;
     } v;
 } lval;
 
 enum { LERR_DIV_ZERO, LERR_BAD_OP, LERR_BAD_INTEGER, LERR_BAD_DECIMAL };
 
-lval lval_integer(long x) {
+lval lval_integer(long double x) {
     lval v;
     v.type = LVAL_INTEGER;
-    v.v.integer = x;
+    v.v.number = x;
     return v;
 }
 
 lval lval_decimal(long double x) {
     lval v;
     v.type = LVAL_DECIMAL;
-    v.v.decimal = x;
+    v.v.number = x;
     return v;
 }
 
@@ -38,9 +37,9 @@ lval lval_err(int x) {
 
 void lval_print(lval v) {
     switch (v.type) {
-        case LVAL_INTEGER: printf("%li", v.v.integer); break;
+        case LVAL_INTEGER: printf("%li", (long)v.v.number); break;
 
-        case LVAL_DECIMAL: printf("%Lg", v.v.decimal); break;
+        case LVAL_DECIMAL: printf("%Lg", v.v.number); break;
 
         case LVAL_ERR: 
         switch (v.v.err) {
@@ -57,48 +56,33 @@ void lval_print(lval v) {
 
 void lval_println(lval v) { lval_print(v); putchar('\n'); }
 
-lval lval_convertnumber(lval x, int type) {
-    if (type == LVAL_DECIMAL) {
-        long double v = x.type == LVAL_DECIMAL ? x.v.decimal : x.v.integer;
-        return lval_decimal(v);
-    }
-    long v = x.type==LVAL_DECIMAL ? x.v.decimal : x.v.integer;
-    return lval_integer(v);
-}
-
 lval lval_ldtonumber(long double v, int type) {
     return type == LVAL_DECIMAL ? lval_decimal(v) : lval_integer(v);
 }
 
 lval eval_fn(lval x, char* fn, lval y) {
     int type;
-    long double xc,yc;
+    long double xv,yv;
 
     /* If either input is an error, return it */
     if (x.type == LVAL_ERR) { return x; }
     if (y.type == LVAL_ERR) { return y; }
 
-    if (x.type == LVAL_DECIMAL || y.type == LVAL_DECIMAL) {
-        type = LVAL_DECIMAL;
-        xc = lval_convertnumber(x,LVAL_DECIMAL).v.decimal;
-        yc = lval_convertnumber(y,LVAL_DECIMAL).v.decimal;
-    } else {
-        type = LVAL_INTEGER;;
-        xc = lval_convertnumber(x,LVAL_INTEGER).v.integer;
-        yc = lval_convertnumber(y,LVAL_INTEGER).v.integer;
-    }
+    type = x.type == LVAL_DECIMAL || y.type == LVAL_DECIMAL ? LVAL_DECIMAL : LVAL_INTEGER;
+    xv = x.v.number;
+    yv = y.v.number;
 
-    if (strcmp(fn, "min") == 0) { return lval_ldtonumber(fmin(xc,yc),type); }
-    if (strcmp(fn, "max") == 0) { return lval_ldtonumber(fmax(xc,yc),type); }
-    if (strcmp(fn, "+") == 0) { return lval_ldtonumber(xc + yc,type); }
-    if (strcmp(fn, "-") == 0) { return lval_ldtonumber(xc - yc,type); }
-    if (strcmp(fn, "*") == 0) { return lval_ldtonumber(xc * yc,type); }
-    if (strcmp(fn, "%") == 0) { return lval_ldtonumber((long)xc % (long)yc,type); }
-    if (strcmp(fn, "^") == 0) { return lval_ldtonumber(pow(xc, yc),type); }
+    if (strcmp(fn, "min") == 0) { return lval_ldtonumber(fmin(xv,yv),type); }
+    if (strcmp(fn, "max") == 0) { return lval_ldtonumber(fmax(xv,yv),type); }
+    if (strcmp(fn, "+") == 0) { return lval_ldtonumber(xv + yv,type); }
+    if (strcmp(fn, "-") == 0) { return lval_ldtonumber(xv - yv,type); }
+    if (strcmp(fn, "*") == 0) { return lval_ldtonumber(xv * yv,type); }
+    if (strcmp(fn, "%") == 0) { return lval_ldtonumber((long)xv % (long)yv,type); }
+    if (strcmp(fn, "^") == 0) { return lval_ldtonumber(pow(xv, yv),type); }
     if (strcmp(fn, "/") == 0) {
-        return yc == 0 
+        return yv == 0 
             ? lval_err(LERR_DIV_ZERO) 
-            : lval_ldtonumber(xc / yc, type);
+            : lval_ldtonumber(xv / yv, type);
     }
 
     return lval_err(LERR_BAD_OP);
@@ -128,8 +112,9 @@ lval eval(mpc_ast_t* t) {
     }
 
     /* With only one argument, - negates */
+    /* XXX: not setup for decimals */
     if (strstr(op, "-") && i == 3) {
-        x = lval_integer(-x.v.integer);
+        x = lval_integer(-x.v.number);
     }
 
     return x;
